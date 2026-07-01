@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -43,6 +44,39 @@ IPPUB_JQL = (
     'AND statusCategory != Done '
     'ORDER BY updated DESC'
 )
+
+
+# JIRA 风格的 ISO 8601 时间戳可能带 "+0800" 这种无冒号偏移量；
+# Python 3.10- 的 fromisoformat 不接受，必须先把 "+HHMM" 转成 "+HH:MM"。
+_TZ_OFFSET_RE = re.compile(r"(Z|[+-]\d{2}:?\d{2})$")
+
+
+def _parse_jira_datetime(s: str) -> Optional[datetime]:
+    """把 JIRA 风格的 ISO 8601 时间戳解析为带 tzinfo 的 datetime。
+
+    支持：
+        "2026-07-01T09:00:00.000+0800"   JIRA Server 默认
+        "2026-07-01T09:00:00.000+08:00"  带冒号
+        "2026-07-01T09:00:00.000Z"       UTC
+        "2026-07-01T09:00:00+0800"       无毫秒
+    返回 None 表示无法解析。
+    """
+    if not s:
+        return None
+    # 末尾偏移量无冒号 → 插入冒号
+    s_norm = _TZ_OFFSET_RE.sub(
+        lambda m: m.group(1) if ":" in m.group(1) or m.group(1) == "Z"
+        else m.group(1)[:-2] + ":" + m.group(1)[-2:],
+        s,
+    )
+    try:
+        dt = datetime.fromisoformat(s_norm)
+    except ValueError:
+        return None
+    # 防御性兜底：naive datetime 视为 UTC（避免与带 tzinfo 的 cutoff 比较时崩溃）
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def parse_issue_summary(issue: Any) -> Dict[str, Any]:
@@ -167,9 +201,12 @@ class JiraService:
             if not started_str:
                 continue
             try:
-                # JIRA 返回格式如 2026-07-01T09:00:00.000+0800
-                started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
+                # JIRA 返回格式如 "2026-07-01T09:00:00.000+0800"
+                # Python 3.10- 的 fromisoformat 不接受无冒号的 "+0800"，需手动插入冒号
+                started_dt = _parse_jira_datetime(started_str)
             except ValueError:
+                continue
+            if started_dt is None:
                 continue
             if started_dt >= cutoff:
                 recent.append(wl)
