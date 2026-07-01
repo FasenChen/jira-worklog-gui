@@ -42,6 +42,9 @@ class _SummarySection(ttk.LabelFrame):
             self._btn_query = ttk.Button(top, text="查询", command=self._on_query)
             self._btn_query.pack(side="right", padx=2)
             self._auto_query_jql = None
+        # 每段独立的"登记此 issue"按钮（inline 可见；选叶子后才可用）
+        self._btn_pick = ttk.Button(top, text="📝 登记此 issue →", command=self._on_pick_clicked, state="disabled")
+        self._btn_pick.pack(side="right", padx=2)
         # 并发查询保护：每次点击 _on_query 自增 token，回调里只接受最新 token
         self._query_token = 0
         self._query_in_flight = False
@@ -72,6 +75,8 @@ class _SummarySection(ttk.LabelFrame):
         self._status_label.pack(anchor="w", pady=(2, 0))
 
         self._tree.bind("<<TreeviewSelect>>", self._on_select)
+        # 双击叶子节点直接登记（最便捷的操作）
+        self._tree.bind("<Double-1>", self._on_pick_clicked)
 
     # ---------- 公开 ----------
 
@@ -189,10 +194,21 @@ class _SummarySection(ttk.LabelFrame):
         self._tree_iid_to_issue[iid] = issue
 
     def _on_select(self, _evt=None):
-        if self._on_issue_selected:
-            issue = self.get_selected_issue()
-            if issue:
-                self._on_issue_selected(issue)
+        issue = self.get_selected_issue()
+        # 启用/禁用本段 inline 按钮
+        try:
+            self._btn_pick.configure(state=("normal" if issue else "disabled"))
+        except tk.TclError:
+            pass
+        # 通知上层（TaskSummaryView 维护"统一底部按钮"状态）
+        if self._on_issue_selected and issue:
+            self._on_issue_selected(issue)
+
+    def _on_pick_clicked(self, _evt=None):
+        """双击或点击 inline 按钮：把当前选中的叶子 issue 传给上层。"""
+        issue = self.get_selected_issue()
+        if issue and self._on_issue_selected:
+            self._on_issue_selected(issue)
 
 
 class TaskSummaryView(ttk.Frame):
@@ -228,8 +244,11 @@ class TaskSummaryView(ttk.Frame):
         self._section_custom.pack(fill="both", expand=True, pady=(0, 6))
 
         bottom = ttk.Frame(self)
-        bottom.pack(fill="x")
-        self._status_label = ttk.Label(bottom, text="")
+        bottom.pack(fill="x", pady=(6, 0))
+        # 操作提示（让用户知道"在哪点"）
+        ttk.Label(bottom, text="💡 选中叶子 issue 后，可点段内「📝 登记此 issue →」按钮、或双击该 issue、或点下方「用此 issue 登记 →」：",
+                  foreground="#666").pack(side="left", padx=(0, 8))
+        self._status_label = ttk.Label(bottom, text="（未选）", foreground="#888")
         self._status_label.pack(side="left")
         self._btn_use = ttk.Button(bottom, text="用此 issue 登记 →",
                                    command=self._on_use, state="disabled")
@@ -243,8 +262,14 @@ class TaskSummaryView(ttk.Frame):
 
     def _on_internal_select(self, issue: Dict[str, Any]):
         self._selected_issue = issue
-        self._btn_use.configure(state="normal")
-        self._status_label.configure(text=f"已选 {issue.get('key','')} — {issue.get('summary','')}")
+        try:
+            self._btn_use.configure(state="normal")
+        except tk.TclError:
+            pass
+        self._status_label.configure(
+            text=f"已选 {issue.get('key','')} — {issue.get('summary','')}",
+            foreground="#0050b0",
+        )
 
     def _on_use(self):
         if not self._selected_issue or not self._on_issue_selected:
