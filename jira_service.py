@@ -187,7 +187,15 @@ class JiraService:
         复用 src.jira.query.user_activity.get_user_worklogs 拿到最近 N 天的全部，
         然后按 started >= 今天 - (days-1) 00:00 本地时区 过滤。
         按 started 降序返回。
+
+        如果 display_name 留空，自动从 test_connection() 拿当前用户的显示名。
         """
+        if not display_name:
+            try:
+                info = self.connection.test_connection()
+                display_name = info.get("user", "") or username
+            except Exception:
+                display_name = username
         local_tz = datetime.now().astimezone().tzinfo
         cutoff = datetime.combine(
             datetime.now().date() - timedelta(days=days - 1),
