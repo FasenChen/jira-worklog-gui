@@ -71,11 +71,10 @@ def format_seconds_to_jira(total_seconds: int) -> str:
     """把总秒数格式化为 jira 字符串（如 '1h 30m'）。
 
     规则：
-        - 0 秒 → "0s"
+        - 0 或负数 → "0s"
         - 只含秒（< 60）→ "30s"
-        - 整小时无零头 → "1h" / "24h"
         - 小时 + 秒（无分钟）→ "1h 30s"
-        - 否则 "Xh Ym" / "Xm" / "Xm Ys"
+        - 有分钟时丢弃秒字段（避免 "1h 30m 30s" 冗余）
     """
     if total_seconds <= 0:
         return "0s"
@@ -86,13 +85,9 @@ def format_seconds_to_jira(total_seconds: int) -> str:
         parts.append(f"{hours}h")
     if minutes:
         parts.append(f"{minutes}m")
-    if seconds:
-        # 仅当“秒”以外的字段没填满时才补秒（避免 "1h 30m 30s" 这种冗余）
-        if not hours and not minutes:
-            parts.append(f"{seconds}s")
-        elif hours and not minutes:
-            # 例如 1h 30s → "1h 30s"
-            parts.append(f"{seconds}s")
+    elif seconds:
+        # 没有分钟时补秒：要么是纯秒（如 30s），要么是 Xh Ys（如 1h 30s）
+        parts.append(f"{seconds}s")
     return " ".join(parts) or "0s"
 
 
