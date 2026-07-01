@@ -40,6 +40,7 @@ IPPUB_JQL = (
     'project = "IPPUB" '
     'AND assignee = currentUser() '
     f'AND issuetype NOT IN ({",".join(str(i) for i in EXCLUDED_ISSUE_TYPE_IDS)}) '
+    'AND statusCategory != Done '
     'ORDER BY updated DESC'
 )
 
