@@ -8,7 +8,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from src.jira.connection.client import JiraConnection
@@ -146,16 +146,22 @@ class JiraService:
 
     # ---------- 当天日志 ----------
 
-    def get_today_worklogs(self, username: str, display_name: str = "") -> List[Dict[str, Any]]:
-        """获取指定用户当天的工作日志列表。
+    def get_recent_worklogs(self, username: str, display_name: str = "",
+                            days: int = 7) -> List[Dict[str, Any]]:
+        """获取指定用户最近 N 天的所有工作日志。
 
-        复用 src.jira.query.user_activity.get_user_worklogs 拿到最近 N 天的，
-        然后按"当天"过滤（started >= 今天 00:00 本地时区）。
+        复用 src.jira.query.user_activity.get_user_worklogs 拿到最近 N 天的全部，
+        然后按 started >= 今天 - (days-1) 00:00 本地时区 过滤。
+        按 started 降序返回。
         """
-        today_start = datetime.combine(datetime.now().date(), time.min).replace(tzinfo=datetime.now().astimezone().tzinfo)
-        # 拉最近 1 天即可（按本地日历），保险起见拉 2 天以跨过午夜
-        raw = get_user_worklogs(self.connection, username, display_name, days=2)
-        today_logs = []
+        local_tz = datetime.now().astimezone().tzinfo
+        cutoff = datetime.combine(
+            datetime.now().date() - timedelta(days=days - 1),
+            time.min,
+        ).replace(tzinfo=local_tz)
+        # 拉最近 days 天，多 1 天余量以防跨时区
+        raw = get_user_worklogs(self.connection, username, display_name, days=days + 1)
+        recent = []
         for wl in raw:
             started_str = wl.get("started", "")
             if not started_str:
@@ -165,11 +171,16 @@ class JiraService:
                 started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
             except ValueError:
                 continue
-            if started_dt >= today_start:
-                today_logs.append(wl)
+            if started_dt >= cutoff:
+                recent.append(wl)
         # 按 started 降序
-        today_logs.sort(key=lambda x: x.get("started", ""), reverse=True)
-        return today_logs
+        recent.sort(key=lambda x: x.get("started", ""), reverse=True)
+        return recent
+
+    # 保留向后兼容的旧方法名
+    def get_today_worklogs(self, username: str, display_name: str = "") -> List[Dict[str, Any]]:
+        """[已弃用] 请改用 get_recent_worklogs(..., days=1)。"""
+        return self.get_recent_worklogs(username, display_name, days=1)
 
     # ---------- 写操作 ----------
 

@@ -1,4 +1,4 @@
-"""当天日志 Tab：展示 + 编辑 + 删除。"""
+"""近 7 天日志 Tab：展示 + 编辑 + 删除。"""
 from __future__ import annotations
 
 import threading
@@ -12,7 +12,7 @@ from ..widgets import DurationEntry, install_invalid_entry_style
 
 
 class TodayLogView(ttk.Frame):
-    """当天日志视图。
+    """近 7 天日志视图。
 
     依赖 service 已连接。username/display_name 从 service 的 test_connection() 拿。
     """
@@ -33,7 +33,7 @@ class TodayLogView(ttk.Frame):
     def _build_widgets(self):
         top = ttk.Frame(self)
         top.pack(fill="x", pady=(0, 6))
-        ttk.Label(top, text="当天工作日志").pack(side="left")
+        ttk.Label(top, text="近 7 天工作日志").pack(side="left")
         ttk.Button(top, text="刷新", command=self.refresh).pack(side="right", padx=2)
 
         tree_frame = ttk.Frame(self)
@@ -104,7 +104,7 @@ class TodayLogView(ttk.Frame):
 
         def worker():
             try:
-                logs = self.service.get_today_worklogs(username, display_name=username)
+                logs = self.service.get_recent_worklogs(username, display_name=username, days=7)
                 self.after(0, lambda: self._on_refresh_done(logs, None))
             except Exception as e:
                 self.after(0, lambda err=e: self._on_refresh_done(None, err))

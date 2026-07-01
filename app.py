@@ -64,7 +64,7 @@ class App(tk.Tk):
     def _build_menu(self):
         menubar = tk.Menu(self)
         file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="刷新当天日志", command=self._refresh_today)
+        file_menu.add_command(label="刷新近 7 天日志", command=self._refresh_today)
         file_menu.add_separator()
         file_menu.add_command(label="退出", command=self._on_close)
         menubar.add_cascade(label="文件", menu=file_menu)
@@ -82,7 +82,9 @@ class App(tk.Tk):
         self._draw_dot(connected=False)
         self._status_text = ttk.Label(bar, text="未连接")
         self._status_text.pack(side="left", padx=6)
-        ttk.Button(bar, text="重连", command=self._reconnect, width=8).pack(side="right", padx=2)
+        # 「重连」button 初始就 pack，但默认隐藏（连接成功后显示）
+        self._btn_reconnect = ttk.Button(bar, text="重连", command=self._reconnect, width=8)
+        self._btn_reconnect.pack(side="right", padx=2)
 
     def _draw_dot(self, connected: bool):
         self._dot.delete("all")
@@ -107,7 +109,7 @@ class App(tk.Tk):
         self.nb.add(self.entry_view, text="③ 快速登记")
 
         self.today_view = TodayLogView(self.nb, service=None)
-        self.nb.add(self.today_view, text="④ 当天日志")
+        self.nb.add(self.today_view, text="④ 近 7 天日志")
 
     # ---------- 事件回调 ----------
 
@@ -140,7 +142,7 @@ class App(tk.Tk):
         self.nb.select(self.entry_view)
 
     def _refresh_today(self):
-        """切到当天日志 Tab 并刷新。"""
+        """切到近 7 天日志 Tab 并刷新。"""
         self.nb.select(self.today_view)
         self.today_view.refresh()
 
@@ -159,6 +161,14 @@ class App(tk.Tk):
             foreground=("#cc0000" if error else ("#008800" if connected else "#444444")),
         )
         self._draw_dot(connected=connected)
+        # 「重连」button 仅在未连接时显示（已连接时干扰）
+        if connected:
+            self._btn_reconnect.pack_forget()
+        else:
+            try:
+                self._btn_reconnect.pack(side="right", padx=2)
+            except tk.TclError:
+                pass
 
     # ---------- 关闭 ----------
 

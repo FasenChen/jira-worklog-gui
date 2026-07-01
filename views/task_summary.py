@@ -22,10 +22,14 @@ class _SummarySection(ttk.LabelFrame):
     def __init__(self, master, title: str, service: Optional[JiraService],
                  preset_jql: Optional[str] = None,
                  on_issue_selected: Optional[Callable[[Dict[str, Any]], None]] = None,
+                 on_pick_to_register: Optional[Callable[[Dict[str, Any]], None]] = None,
                  **kw):
         super().__init__(master, text=title, padding=8, **kw)
         self.service = service
+        # on_issue_selected: 选中回调（仅更新状态，不切 Tab）
+        # on_pick_to_register: 登记回调（点 inline 按钮 / 双击触发，应切到快速登记 Tab）
         self._on_issue_selected = on_issue_selected
+        self._on_pick_to_register = on_pick_to_register
         self._hierarchy: Dict[str, Any] = {"epics": [], "orphans": []}
         self._tree_iid_to_issue: Dict[str, Dict[str, Any]] = {}
 
@@ -205,10 +209,10 @@ class _SummarySection(ttk.LabelFrame):
             self._on_issue_selected(issue)
 
     def _on_pick_clicked(self, _evt=None):
-        """双击或点击 inline 按钮：把当前选中的叶子 issue 传给上层。"""
+        """双击或点击 inline 按钮：把当前选中的叶子 issue 真正冒泡到 App 切 Tab。"""
         issue = self.get_selected_issue()
-        if issue and self._on_issue_selected:
-            self._on_issue_selected(issue)
+        if issue and self._on_pick_to_register:
+            self._on_pick_to_register(issue)
 
 
 class TaskSummaryView(ttk.Frame):
@@ -222,10 +226,17 @@ class TaskSummaryView(ttk.Frame):
         self._on_issue_selected = on_issue_selected
         self._selected_issue: Optional[Dict[str, Any]] = None
 
+        # 包装一层 lambda 把 self + issue 正确传过去
+        # （直接传 self._on_use 会让 Python 当成 unbound method 调用，缺 self 时报
+        # "takes 1 positional argument but 2 were given"）
+        def pick_handler(issue):
+            self._on_use()
+
         self._section_my = _SummarySection(
             self, "📌 分配给我的任务（未完成，排除缺陷）",
             service=service, preset_jql=MY_TASKS_JQL,
             on_issue_selected=self._on_internal_select,
+            on_pick_to_register=pick_handler,
         )
         self._section_my.pack(fill="both", expand=True, pady=(0, 6))
 
@@ -233,6 +244,7 @@ class TaskSummaryView(ttk.Frame):
             self, "🏷️ 我的 IPPUB 任务（排除缺陷）",
             service=service, preset_jql=IPPUB_JQL,
             on_issue_selected=self._on_internal_select,
+            on_pick_to_register=pick_handler,
         )
         self._section_ipub.pack(fill="both", expand=True, pady=(0, 6))
 
@@ -240,6 +252,7 @@ class TaskSummaryView(ttk.Frame):
             self, "🔍 自定义 JQL",
             service=service, preset_jql=None,
             on_issue_selected=self._on_internal_select,
+            on_pick_to_register=pick_handler,
         )
         self._section_custom.pack(fill="both", expand=True, pady=(0, 6))
 
@@ -272,6 +285,9 @@ class TaskSummaryView(ttk.Frame):
         )
 
     def _on_use(self):
+        """底部统一按钮 / 段内 inline 按钮 / 双击 issue 都走这里。
+        把选中的 issue 真正冒泡给 App（切到快速登记 Tab）。
+        """
         if not self._selected_issue or not self._on_issue_selected:
             return
         self._on_issue_selected(self._selected_issue)
