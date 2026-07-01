@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from typing import Any, Callable, Dict, List, Optional
 
 from ..jira_service import JiraService, MY_TASKS_JQL, IPPUB_JQL
@@ -33,13 +33,18 @@ class _SummarySection(ttk.LabelFrame):
         top.pack(fill="x", pady=(0, 4))
         if preset_jql is not None:
             self._jql_text = None
-            ttk.Button(top, text="刷新", command=self._on_query).pack(side="right", padx=2)
+            self._btn_query = ttk.Button(top, text="刷新", command=self._on_query)
+            self._btn_query.pack(side="right", padx=2)
             self._auto_query_jql = preset_jql
         else:
             self._jql_text = tk.StringVar()
             ttk.Entry(top, textvariable=self._jql_text).pack(side="left", fill="x", expand=True, padx=2)
-            ttk.Button(top, text="查询", command=self._on_query).pack(side="right", padx=2)
+            self._btn_query = ttk.Button(top, text="查询", command=self._on_query)
+            self._btn_query.pack(side="right", padx=2)
             self._auto_query_jql = None
+        # 并发查询保护：每次点击 _on_query 自增 token，回调里只接受最新 token
+        self._query_token = 0
+        self._query_in_flight = False
 
         cols = ("type", "status", "key", "summary")
         self._tree = ttk.Treeview(self, columns=cols, show="tree headings", selectmode="browse")
@@ -98,6 +103,8 @@ class _SummarySection(ttk.LabelFrame):
         self._hierarchy = {"epics": [], "orphans": []}
 
     def _on_query(self):
+        if self._query_in_flight:
+            return  # 防止快速重复点击造成数据竞态
         if not self.service:
             self._set_status("未连接", error=True)
             return
@@ -105,33 +112,51 @@ class _SummarySection(ttk.LabelFrame):
         if not jql:
             self._set_status("JQL 为空", error=True)
             return
+        self._query_in_flight = True
+        self._query_token += 1
+        token = self._query_token
+        try:
+            self._btn_query.configure(state="disabled")
+        except tk.TclError:
+            pass
         self._set_status("查询中…")
 
         def worker():
             try:
                 data = self.service.search_issues_hierarchical(jql)
-                self.after(0, lambda: self._on_query_done(data, None))
+                self.after(0, lambda: self._on_query_done(token, data, None))
             except Exception as e:
-                self.after(0, lambda err=e: self._on_query_done(None, err))
+                self.after(0, lambda err=e: self._on_query_done(token, None, err))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_query_done(self, data, error):
-        if error:
-            self._set_status(f"✗ {error}", error=True)
+    def _on_query_done(self, token, data, error):
+        # 只接受最新 token 的结果，丢弃过期回调
+        if token != self._query_token:
             return
-        self._clear_tree()
-        self._hierarchy = data
-        for epic in data.get("epics", []):
-            self._add_epic(epic)
-        for orphan in data.get("orphans", []):
-            self._add_orphan(orphan)
-        total_children = sum(len(e["children"]) for e in data.get("epics", []))
-        n_epics = len(data.get("epics", []))
-        n_orphans = len(data.get("orphans", []))
-        self._set_status(
-            f"✓ {n_epics} 个 Epic · {total_children} 个子任务 · {n_orphans} 个游离"
-        )
+        self._query_in_flight = False
+        try:
+            self._btn_query.configure(state="normal")
+        except tk.TclError:
+            pass  # 控件已销毁（应用关闭中）
+        try:
+            if error:
+                self._set_status(f"✗ {error}", error=True)
+                return
+            self._clear_tree()
+            self._hierarchy = data
+            for epic in data.get("epics", []):
+                self._add_epic(epic)
+            for orphan in data.get("orphans", []):
+                self._add_orphan(orphan)
+            total_children = sum(len(e["children"]) for e in data.get("epics", []))
+            n_epics = len(data.get("epics", []))
+            n_orphans = len(data.get("orphans", []))
+            self._set_status(
+                f"✓ {n_epics} 个 Epic · {total_children} 个子任务 · {n_orphans} 个游离"
+            )
+        except tk.TclError:
+            pass  # widget 已在回调中途被销毁
 
     def _add_epic(self, epic):
         iid = self._tree.insert(
