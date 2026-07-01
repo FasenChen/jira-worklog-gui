@@ -112,7 +112,7 @@ class CredentialsView(ttk.Frame):
         """异步连接，避免阻塞 UI。"""
         cfg = self._collect()
         if not cfg.is_valid():
-            messagebox.showwarning("配置不完整", "请填写 JIRA URL 与 密码/Token 之一。")
+            messagebox.showwarning("配置不完整", "请填写用户名与密码。")
             return
         # 先保存
         try:

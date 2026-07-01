@@ -52,7 +52,7 @@ tools/jira_worklog_gui/
 ├── jira_service.py         # JiraConnection 薄封装 + 业务方法
 ├── views/                  # 4 个 Tab Frame
 │   ├── credentials_view.py
-│   ├── issue_picker.py
+│   ├── task_summary.py
 │   ├── log_entry.py
 │   └── today_log.py
 └── widgets/
@@ -94,9 +94,9 @@ python -m pytest tests/test_jira_service.py tests/test_duration.py -v
 python -m pytest tests/test_utils.py tests/test_entity.py tests/test_connection.py tests/test_query.py tests/test_confluence.py tests/test_duration.py tests/test_jira_service.py tests/test_worklog_write.py
 ```
 
-当前 230 个用例全部通过。
+当前 244 个用例全部通过。
 
-GUI 本身是交互式的，未做自动化 GUI 测试。手动 smoke test：启动后填写凭据 → 测试连接 → 切到 Issue 浏览器跑个简单 JQL → 选个 issue 登记 → 在当天日志 Tab 看到记录。
+GUI 本身是交互式的，未做自动化 GUI 测试。手动 smoke test：启动后填写用户名+密码 → 点「连接」 → 切到「任务汇总」选个 issue → 在「快速登记」提交 → 在「当天日志」Tab 看到记录。
 
 ## 已知限制
 

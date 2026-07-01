@@ -14,7 +14,7 @@ from ..widgets import DurationEntry, accumulate_duration
 class LogEntryView(ttk.Frame):
     """快速登记表单。
 
-    外部提供 issue（来自 IssuePickerView）后，启用表单，提交后回调。
+    外部提供 issue（来自 TaskSummaryView）后，启用表单，提交后回调。
     """
 
     def __init__(self, master, service: Optional[JiraService],
@@ -24,7 +24,7 @@ class LogEntryView(ttk.Frame):
         self.on_log_added = on_log_added
         self._current_issue: Optional[Dict[str, Any]] = None
 
-        self._var_issue = tk.StringVar(value="（请先在「Issue 浏览器」选择）")
+        self._var_issue = tk.StringVar(value="（请先在「任务汇总」选择）")
         self._var_duration = tk.StringVar()
         self._var_comment = tk.StringVar()
         self._var_started = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -150,7 +150,7 @@ class LogEntryView(ttk.Frame):
             messagebox.showwarning("未连接", "请先在「凭据」Tab 连接 JIRA。")
             return
         if not self._current_issue:
-            messagebox.showwarning("未选 issue", "请先在「Issue 浏览器」选中一个 issue。")
+            messagebox.showwarning("未选 issue", "请先在「任务汇总」选中一个 issue。")
             return
         time_spent = self._duration_entry.get()
         if not time_spent:
@@ -190,7 +190,7 @@ class LogEntryView(ttk.Frame):
         self._set_status(f"✓ 已登记 {worklog.get('time_spent','?')}（id={worklog.get('id')}）")
         if not keep_issue:
             self._current_issue = None
-            self._var_issue.set("（请先在「Issue 浏览器」选择）")
+            self._var_issue.set("（请先在「任务汇总」选择）")
             self._set_form_enabled(False)
         self._clear_form()
         if self.on_log_added:
