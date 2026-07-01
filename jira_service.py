@@ -21,18 +21,24 @@ from src.jira.query import search_all_issues, get_user_worklogs
 
 
 # 任务汇总预设 JQL（设计文档定义）
+#
+# 注意：issuetype 排除条件使用 issue type id（10102）而非中文名"问题缺陷"。
+# 该实例的 JQL 解析器不识别中文 type name（报 "issuetype 域中没有"问题缺陷"值"），
+# 但 id 在所有 JQL 操作符下都稳定工作。
+#   10102 = 问题缺陷
+# 如未来需要排除更多类型，按真实 id 追加到 EXCLUDED_ISSUE_TYPE_IDS 即可。
+EXCLUDED_ISSUE_TYPE_IDS = (10102,)
+
 MY_TASKS_JQL = (
     'assignee = currentUser() '
-    'AND issuetype != "问题缺陷" '
-    'AND issuetype != "Bug" '
+    f'AND issuetype NOT IN ({",".join(str(i) for i in EXCLUDED_ISSUE_TYPE_IDS)}) '
     'AND statusCategory != Done '
     'ORDER BY updated DESC'
 )
 
 IPPUB_JQL = (
     'project = "IPPUB" '
-    'AND issuetype != "问题缺陷" '
-    'AND issuetype != "Bug" '
+    f'AND issuetype NOT IN ({",".join(str(i) for i in EXCLUDED_ISSUE_TYPE_IDS)}) '
     'ORDER BY updated DESC'
 )
 
