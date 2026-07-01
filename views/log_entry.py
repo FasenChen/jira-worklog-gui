@@ -8,7 +8,7 @@ from tkinter import ttk, messagebox
 from typing import Any, Dict, Optional
 
 from ..jira_service import JiraService
-from ..widgets import DurationEntry
+from ..widgets import DurationEntry, accumulate_duration
 
 
 class LogEntryView(ttk.Frame):
@@ -28,7 +28,7 @@ class LogEntryView(ttk.Frame):
         self._var_duration = tk.StringVar()
         self._var_comment = tk.StringVar()
         self._var_started = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d %H:%M"))
-        self._var_adjust = tk.StringVar(value="leave")
+        # adjust_estimate 永远是 leave，不再让 UI 选择
 
         self._build_widgets()
         self._set_form_enabled(False)
@@ -61,6 +61,10 @@ class LogEntryView(ttk.Frame):
         dur_frame.grid(row=row, column=1, sticky="w", pady=4)
         self._duration_entry = DurationEntry(dur_frame, textvariable=self._var_duration, width=15)
         self._duration_entry.pack(side="left")
+        for label, secs in [("+30min", 30 * 60), ("+1h", 3600), ("+2h", 2 * 3600),
+                            ("+4h", 4 * 3600), ("+8h", 8 * 3600)]:
+            ttk.Button(dur_frame, text=label, width=6,
+                       command=lambda s=secs: self._on_quick_duration(s)).pack(side="left", padx=2)
         ttk.Label(dur_frame, text="支持 1h30m / 90m / 1.5h / 5400s / 2d",
                   foreground="#888").pack(side="left", padx=8)
 
@@ -78,15 +82,6 @@ class LogEntryView(ttk.Frame):
         ttk.Label(self, text="描述").grid(row=row, column=0, sticky="nw", pady=4)
         self._txt_comment = tk.Text(self, height=6, width=60)
         self._txt_comment.grid(row=row, column=1, sticky="ew", pady=4)
-
-        # 调整估算
-        row += 1
-        ttk.Label(self, text="剩余估算").grid(row=row, column=0, sticky="w", pady=4)
-        adj_frame = ttk.Frame(self)
-        adj_frame.grid(row=row, column=1, sticky="w", pady=4)
-        for val, label in [("leave", "不调整（默认）"), ("auto", "自动扣减"), ("new", "设为新值")]:
-            ttk.Radiobutton(adj_frame, text=label, variable=self._var_adjust,
-                            value=val).pack(side="left", padx=4)
 
         # 按钮
         row += 1
@@ -124,6 +119,17 @@ class LogEntryView(ttk.Frame):
         self._duration_entry.clear()
         self._txt_comment.delete("1.0", "end")
 
+    def _on_quick_duration(self, add_seconds: int):
+        """快捷按钮：把 add_seconds 累加到当前输入框。"""
+        current = self._var_duration.get().strip()
+        try:
+            new_text = accumulate_duration(current, add_seconds)
+        except ValueError:
+            messagebox.showwarning("输入有误", f"当前耗时 '{current}' 无法解析，请先修正或清空。")
+            return
+        self._var_duration.set(new_text)
+        self._duration_entry._refresh_style()
+
     def _parse_started(self) -> Optional[datetime]:
         """解析开始时间字符串为带本地时区的 datetime；空字符串返回 None。"""
         s = self._var_started.get().strip()
@@ -156,8 +162,7 @@ class LogEntryView(ttk.Frame):
         except ValueError as e:
             messagebox.showerror("时间格式错误", str(e))
             return
-        adjust_estimate = self._var_adjust.get()
-
+        # adjust_estimate 永远是 leave（设计决策：不调整 issue 剩余估算）
         issue_key = self._current_issue["key"]
         self._set_buttons_enabled(False)
         self._set_status("提交中…")
@@ -169,7 +174,6 @@ class LogEntryView(ttk.Frame):
                     time_spent=time_spent,
                     started=started,
                     comment=comment,
-                    adjust_estimate=adjust_estimate,
                 )
                 self.after(0, lambda: self._on_submit_done(wl, keep_issue, None))
             except Exception as e:
