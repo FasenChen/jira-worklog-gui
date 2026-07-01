@@ -214,7 +214,7 @@ class TaskSummaryView(ttk.Frame):
         self._section_my.pack(fill="both", expand=True, pady=(0, 6))
 
         self._section_ipub = _SummarySection(
-            self, "🏷️ IPPUB 项目任务（排除缺陷）",
+            self, "🏷️ 我的 IPPUB 任务（排除缺陷）",
             service=service, preset_jql=IPPUB_JQL,
             on_issue_selected=self._on_internal_select,
         )
