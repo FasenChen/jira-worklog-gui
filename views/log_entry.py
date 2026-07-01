@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
-from datetime import datetime
+from datetime import datetime, timedelta
 from tkinter import ttk, messagebox
 from typing import Any, Dict, Optional
 
@@ -68,14 +68,34 @@ class LogEntryView(ttk.Frame):
         ttk.Label(dur_frame, text="支持 1h30m / 90m / 1.5h / 5400s / 2d",
                   foreground="#888").pack(side="left", padx=8)
 
-        # 开始时间
+        # 开始时间：第一行手输 + 日期快捷；第二行时段快捷
         row += 1
-        ttk.Label(self, text="开始时间").grid(row=row, column=0, sticky="w", pady=4)
-        ttk.Entry(self, textvariable=self._var_started, width=20).grid(
-            row=row, column=1, sticky="w", pady=4
-        )
-        ttk.Label(self, text="格式 YYYY-MM-DD HH:MM，留空=服务器当前时间",
-                  foreground="#888").grid(row=row, column=1, sticky="e", padx=4)
+        ttk.Label(self, text="开始时间").grid(row=row, column=0, sticky="nw", pady=4)
+        started_frame = ttk.Frame(self)
+        started_frame.grid(row=row, column=1, sticky="ew", pady=4)
+        ttk.Entry(started_frame, textvariable=self._var_started, width=20).pack(side="left")
+        ttk.Label(started_frame, text="格式 YYYY-MM-DD HH:MM",
+                  foreground="#888").pack(side="left", padx=8)
+
+        # 日期快捷：近 7 天（今天 / 昨天 / ... / 6 天前）+ 一个"现在"按钮
+        date_row = ttk.Frame(self)
+        date_row.grid(row=row, column=1, sticky="w", pady=(0, 4))
+        ttk.Label(date_row, text="日期：", foreground="#666").pack(side="left", padx=(0, 4))
+        # 「现在」按钮：填入今天 + 当前小时分钟
+        ttk.Button(date_row, text="现在", width=5,
+                   command=lambda: self._on_started_date(0, keep_time=True)).pack(side="left", padx=1)
+        for i in range(7):  # 0=今天, 1=昨天, ..., 6=6 天前
+            label = "今" if i == 0 else f"{i}天前"
+            ttk.Button(date_row, text=label, width=5,
+                       command=lambda d=i: self._on_started_date(d, keep_time=False)).pack(side="left", padx=1)
+
+        # 时段快捷：8/9/10/11/14/15/16/17/18 点（跳过 12/13 午休）
+        hour_row = ttk.Frame(self)
+        hour_row.grid(row=row, column=1, sticky="w", pady=(0, 4))
+        ttk.Label(hour_row, text="时段：", foreground="#666").pack(side="left", padx=(0, 4))
+        for h in (8, 9, 10, 11, 14, 15, 16, 17, 18):
+            ttk.Button(hour_row, text=f"{h}点", width=5,
+                       command=lambda hh=h: self._on_started_hour(hh)).pack(side="left", padx=1)
 
         # 工作描述
         row += 1
@@ -129,6 +149,39 @@ class LogEntryView(ttk.Frame):
             return
         self._var_duration.set(new_text)
         self._duration_entry._refresh_style()
+
+    # ---------- 开始时间快捷 ----------
+
+    def _on_started_date(self, days_ago: int, keep_time: bool = False):
+        """日期快捷按钮：days_ago=0=今天, 1=昨天, ..., 6=6 天前。
+
+        keep_time=True（「现在」按钮）：只换日期，保留原小时分钟。
+        keep_time=False：只换日期，时间归零到 00:00（让用户接着点时段按钮）。
+        """
+        new_date = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+        s = self._var_started.get().strip()
+        if keep_time and s:
+            # 保留原时间部分
+            try:
+                _ = datetime.strptime(s, "%Y-%m-%d %H:%M")
+                time_part = s[11:]  # "HH:MM"
+            except ValueError:
+                time_part = datetime.now().strftime("%H:%M")
+        else:
+            time_part = "00:00"
+        self._var_started.set(f"{new_date} {time_part}")
+
+    def _on_started_hour(self, hour: int):
+        """时段快捷按钮：替换或补全输入框的小时部分（分钟归零）。"""
+        s = self._var_started.get().strip()
+        date_part = datetime.now().strftime("%Y-%m-%d")
+        if s:
+            try:
+                datetime.strptime(s, "%Y-%m-%d %H:%M")
+                date_part = s[:10]
+            except ValueError:
+                pass
+        self._var_started.set(f"{date_part} {hour:02d}:00")
 
     def _parse_started(self) -> Optional[datetime]:
         """解析开始时间字符串为带本地时区的 datetime；空字符串返回 None。"""

@@ -233,7 +233,7 @@ class TaskSummaryView(ttk.Frame):
             self._on_use()
 
         self._section_my = _SummarySection(
-            self, "📌 分配给我的任务（未完成，排除缺陷）",
+            self, "📌 我的非 IPPUB 任务（未完成，排除缺陷和子任务）",
             service=service, preset_jql=MY_TASKS_JQL,
             on_issue_selected=self._on_internal_select,
             on_pick_to_register=pick_handler,
