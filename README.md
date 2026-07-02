@@ -23,14 +23,32 @@ python -m tools.jira_worklog_gui
 1. **凭据配置** — 填写 JIRA URL / 用户名 / 密码（或 API Token） / 默认 JQL。
    第一次启动会自动跳到此 Tab。
 2. **任务汇总** — 三段堆叠：
-   - 📌 **我的任务**（未完成、排除缺陷）自动按 JQL `assignee = currentUser() AND issuetype != "问题缺陷" AND issuetype != "Bug" AND statusCategory != Done` 查询
-   - 🏷️ **IPPUB 任务** 自动按 JQL `project = "IPPUB" AND issuetype != "问题缺陷" AND issuetype != "Bug"` 查询
+   - 📌 **我的非 IPPUB 任务**（未完成、排除缺陷和子任务）自动按 JQL `assignee = currentUser() AND project NOT IN (IPPUB) AND issuetype NOT IN (10102,10101,10303,10205) AND statusCategory != Done` 查询
+   - 🏷️ **我的 IPPUB 任务**（排除缺陷和子任务）自动按 JQL `project = "IPPUB" AND assignee = currentUser() AND issuetype NOT IN (10102,10101,10303,10205) AND statusCategory != Done` 查询
    - 🔍 **自定义 JQL** 自由输入并查询
-   每段独立 Treeview、独立刷新按钮。选中任一段的叶子后，底部「用此 issue 登记 →」按钮启用。
+   每段独立 Treeview、独立刷新按钮。选中任一段的叶子后：
+   - 段内顶部「📝 登记此 issue →」按钮启用
+   - **双击该 issue** 同样触发登记（最便捷）
+   - 底部统一「用此 issue 登记 →」按钮启用（任一段选中都可触发，会切到「快速登记」Tab）
+
+   **排除的 issue type id**（共享常量 `EXCLUDED_ISSUE_TYPE_IDS`）：
+   - 10102 = 问题缺陷
+   - 10101 = 子任务
+   - 10303 = 项目子任务
+   - 10205 = 测试执行子任务
+
+   JQL 用 id 而非中文名，是因为该实例的 JQL 解析器拒绝 `issuetype != "问题缺陷"` 这类中文字面量。
 3. **快速登记** — 填写耗时 / 开始时间 / 描述，一键 add_worklog。
    - 耗时格式：`1h30m` / `90m` / `1.5h` / `5400s` / `2d` / `1w`，单位必填（d=8h，w=5d）
+   - 耗时右侧有 5 个快捷按钮 `+30min` / `+1h` / `+2h` / `+4h` / `+8h`，点击累加到当前耗时
+   - **开始时间**：手输 + 两行快捷
+     - 日期行：「现在」+ 近 7 天快捷（今天/1天前/.../6天前）
+     - 时段行：8/9/10/11/14/15/16/17/18 点快捷（跳过午休）
+     - 「现在」按钮保留原 HH:MM；其他日期按钮时间归 00:00 方便接着选时段
    - 「登记并继续」可保留当前 issue 连续登记多条
-4. **当天日志** — 当天所有 worklog 列表，支持编辑（弹模态框）和删除。
+4. **近 7 天日志** — 最近 7 天所有 worklog 列表，支持编辑（弹模态框）和删除。
+   - 实现：`JiraService.get_recent_worklogs(username, days=7)`，按本地时区 `00:00` 切 7 天窗口
+   - `display_name` 留空时自动从 `test_connection()` 拿，避免 username/display name 不匹配导致 0 条
 
 顶栏绿/红圆点显示连接状态，「重连」按钮可重新建立连接。
 
@@ -94,14 +112,14 @@ python -m pytest tests/test_jira_service.py tests/test_duration.py -v
 python -m pytest tests/test_utils.py tests/test_entity.py tests/test_connection.py tests/test_query.py tests/test_confluence.py tests/test_duration.py tests/test_jira_service.py tests/test_worklog_write.py
 ```
 
-当前 244 个用例全部通过。
+当前 259 个用例全部通过。
 
-GUI 本身是交互式的，未做自动化 GUI 测试。手动 smoke test：启动后填写用户名+密码 → 点「连接」 → 切到「任务汇总」选个 issue → 在「快速登记」提交 → 在「当天日志」Tab 看到记录。
+GUI 本身是交互式的，未做自动化 GUI 测试。手动 smoke test：启动后填写用户名+密码 → 点「连接」 → 切到「任务汇总」选个 issue → 在「快速登记」用快捷按钮填耗时和开始时间 → 提交 → 在「近 7 天日志」Tab 看到记录。
 
 ## 已知限制
 
 - 仅支持 worklog 写操作；修改 issue 字段、添加 comment、转 status 等未提供 GUI
-- 当天日志的"当天"按本地时区（系统时区）的 `00:00-23:59` 计算
+- 当天日志改为近 7 天（`days=7`），按本地时区 00:00 切 7 天窗口
 - 一次性最多加载 200 个 issue（`search_issues` 的默认值），如需更多请在 `jira_service.py` 调整
 - 不做国际化（中文界面）
 - 没打包成 exe，需要 Python 环境（后续可加 PyInstaller）
