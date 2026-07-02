@@ -9,16 +9,72 @@
 from __future__ import annotations
 
 import re
+import sys
 from datetime import datetime, time, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.jira.connection.client import JiraConnection
-from src.jira.connection.exceptions import (
+# 兼容 IP_Jira_Mnager 的 src/ 布局：原仓 _decorators.py 用 from ...common.decorators
+# 只有当 IP_Jira_Mnager/src 在 sys.path 时才能 resolve。这里自动探测 IP_Jira_Mnager
+# 的 editable 安装路径，把 src 目录加到 sys.path。如果安装方式改了，这段也无害（已
+# 在 sys.path 上时加重复项无副作用）。
+def _bootstrap_ip_jira_manager_src() -> None:
+    try:
+        from importlib.metadata import distribution
+    except ImportError:
+        return
+    try:
+        dist = distribution("ip-jira-manager")
+    except Exception:
+        return
+    candidates = []
+    # 1) editable install: dist-info/direct_url.json 里有 file:// 指向项目根
+    try:
+        import json
+        dist_info_dir = Path(str(dist._path))  # type: ignore[attr-defined]
+        direct_url = dist_info_dir / "direct_url.json"
+        if direct_url.exists():
+            data = json.loads(direct_url.read_text(encoding="utf-8"))
+            url = data.get("url", "")
+            if url.startswith("file://"):
+                # file:///D:/Code/IP_Jira_Mnager -> D:\Code\IP_Jira_Mnager
+                from urllib.request import url2pathname
+                project_root = Path(url2pathname(url[len("file://"):]))
+                candidates.append(project_root / "src")
+    except Exception:
+        pass
+    # 2) 退路：dist-info 的父目录（site-packages）下的 src（普通 install 用）
+    try:
+        dist_info_dir = Path(str(dist._path))  # type: ignore[attr-defined]
+        site_packages = dist_info_dir.parent
+        candidates.append(site_packages / "src")
+    except Exception:
+        pass
+    for cand in candidates:
+        try:
+            # cand 是 src 目录的路径。我们要的是 cand.parent（即 src 所在的项目根），
+            # 因为 src/__init__.py 里 from src.jira import ... 要能 resolve。
+            project_root = cand.parent
+            src_init = cand / "__init__.py"
+            jira_init = cand / "jira" / "__init__.py"
+            common_init = cand / "common" / "__init__.py"
+            if src_init.exists() and jira_init.exists() and common_init.exists():
+                if str(project_root) not in sys.path:
+                    sys.path.insert(0, str(project_root))
+                return
+        except OSError:
+            continue
+
+
+_bootstrap_ip_jira_manager_src()
+
+from src.jira.connection.client import JiraConnection  # noqa: E402
+from src.jira.connection.exceptions import (  # noqa: E402
     JiraConnectionError,
     JiraAuthError,
     JiraRequestError,
 )
-from src.jira.query import search_all_issues, get_user_worklogs
+from src.jira.query import search_all_issues, get_user_worklogs  # noqa: E402
 
 
 # 任务汇总预设 JQL（设计文档定义）

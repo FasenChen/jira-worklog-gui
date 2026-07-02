@@ -1,0 +1,36 @@
+[project]
+name = "jira-worklog-gui"
+version = "0.2.0"
+description = "JIRA 工作日志登记 GUI 工具（Tkinter）"
+requires-python = ">=3.8"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "重逢时"},
+]
+dependencies = [
+    "IP_Jira_Mnager @ git+https://gitee.com/chongfengshi/IP_Jira_Mnager.git@main",
+    "jira>=3.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+jira-worklog-gui = "jira_worklog_gui.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: Unit tests (no external connections required)",
+    "integration: Integration tests (require live JIRA/Confluence)",
+]
