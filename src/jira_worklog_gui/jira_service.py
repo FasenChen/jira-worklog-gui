@@ -57,8 +57,11 @@ def _bootstrap_ip_jira_manager_src() -> None:
             project_root = cand.parent
             src_init = cand / "__init__.py"
             jira_init = cand / "jira" / "__init__.py"
-            common_init = cand / "common" / "__init__.py"
-            if src_init.exists() and jira_init.exists() and common_init.exists():
+            # 检查 src/ 完整性：src/__init__.py + src/jira/__init__.py 是最低要求
+            # （src/common 可能在 site-packages install 时没被 setuptools 找到，
+            # 但 src/ 整目录在 sys.path 上时，import 仍能通过 IP_Jira_Mnager 仓根的
+            # src.common 路径解决；或者通过 src/ 自身作为 namespace package。）
+            if src_init.exists() and jira_init.exists():
                 if str(project_root) not in sys.path:
                     sys.path.insert(0, str(project_root))
                 return

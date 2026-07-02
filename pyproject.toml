@@ -9,7 +9,7 @@ authors = [
     {name = "重逢时"},
 ]
 dependencies = [
-    "IP_Jira_Mnager @ git+https://gitee.com/chongfengshi/IP_Jira_Mnager.git@main",
+    "ip-jira-manager @ git+https://gitee.com/chongfengshi/IP_Jira_Mnager.git@main",
     "jira>=3.5.0",
 ]
 
