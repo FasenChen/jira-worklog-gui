@@ -198,7 +198,7 @@ class JiraService:
                             days: int = 7) -> List[Dict[str, Any]]:
         """获取指定用户最近 N 天的所有工作日志。
 
-        复用 src.jira.query.user_activity.get_user_worklogs 拿到最近 N 天的全部，
+        复用 _vendor.jira.query.user_activity.get_user_worklogs 拿到最近 N 天的全部，
         然后按 started >= 今天 - (days-1) 00:00 本地时区 过滤。
         按 started 降序返回。
 

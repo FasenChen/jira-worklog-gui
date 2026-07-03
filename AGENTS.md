@@ -4,28 +4,20 @@
 
 ## 项目概述
 
-JIRA 工作日志登记 GUI 工具（Python 3.8+，Tkinter）。从 `IP_Jira_Mnager` 仓库的 `tools/jira_worklog_gui/` 子目录用 `git subtree split` 独立而来。**不要**改这个仓依赖的上游 `IP_Jira_Mnager` 库代码——库代码在另一个仓库。
+JIRA 工作日志登记 GUI 工具（Python 3.8+，Tkinter）。从 `IP_Jira_Mnager` 仓库的 `tools/jira_worklog_gui/` 子目录用 `git subtree split` 独立而来。**自 v3 (2026-07-03) 起，上游 `IP_Jira_Mnager` 库的 `JiraConnection` 等代码已 vendor 到本仓 `_vendor/`，断联模式，不再依赖外部仓**。
 
 - 主仓库：https://github.com/FasenChen/jira-worklog-gui
-- 上游依赖：https://gitee.com/chongfengshi/IP_Jira_Mnager（Git 依赖，pyproject.toml 里钉死）
 
 ## 启动
 
 ```bash
-# 1. 先装底层库（开发模式，必须先装）
-git clone https://gitee.com/chongfengshi/IP_Jira_Mnager.git
-pip install -e ./IP_Jira_Mnager
-
-# 2. 装 GUI
 pip install -e .
-
-# 3. 运行
 jira-worklog-gui
 # 或
 python -m jira_worklog_gui
 ```
 
-无任何第三方 GUI 依赖（tkinter 是标准库）。
+无任何第三方 GUI 依赖（tkinter 是标准库）。依赖：`jira>=3.5.0`（PyPI）；上游连接库已 vendor 进 `_vendor/`，无需再 clone 外部仓库。
 
 ## 测试
 
