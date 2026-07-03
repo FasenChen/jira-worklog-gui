@@ -234,7 +234,7 @@ class TestJiraServiceHierarchical:
     @patch("jira_worklog_gui.jira_service.search_all_issues")
     def test_missing_epic_is_silently_ignored(self, mock_search, mock_conn_cls):
         """当 get_issue 拿不到 epic 时不应阻塞整个查询。"""
-        from src.jira.connection.exceptions import JiraRequestError
+        from jira_worklog_gui._vendor.jira.connection.exceptions import JiraRequestError
         mock_conn = _make_mock_connection(mock_conn_cls)
         mock_conn.get_issue.side_effect = JiraRequestError("not found")
         mock_search.return_value = [
