@@ -25,6 +25,7 @@
 | 2026-07-01 | v2 (需求调整) | 6 项调整：硬编码 URL、取消 Token、任务汇总三段、耗时快捷按钮累加、删除剩余估算 |
 | 2026-07-01 | v2 后续补丁 | 7 个 bug fix + 需求（重连按钮隐藏、Tab 切换、JQL id 替代中文名、datetime 解析、display_name 兜底、当天改 7 天、开始时间快捷） |
 | 2026-07-02 | 独立仓库 | 用 `git subtree split` 迁出到 https://github.com/FasenChen/jira-worklog-gui，重组为 `src/jira_worklog_gui/` 标准布局 |
+| 2026-07-03 | v3 (vendor) | 上游 `IP_Jira_Mnager` 库的 `JiraConnection` + 查询函数全部 vendor 到 `_vendor/`，去掉 `pyproject.toml` 的 Git 依赖，断联模式 |
 
 ### 关键决策记录（这些是反复讨论后定下的，避免 AI 重提）
 
@@ -54,6 +55,12 @@ jira-worklog-gui/                  # 仓库根
 │   ├── app.py                     # 主窗口（4 Tab Notebook）
 │   ├── config_store.py            # 凭据 JSON 读写（用户目录 ~/.jira_worklog_gui/）
 │   ├── jira_service.py            # JiraConnection 薄封装 + JQL 常量
+│   ├── _vendor/                   # 上游 IP_Jira_Mnager 库代码（vendor，断联模式）
+│   │   ├── common/decorators.py   # require_connection 工厂
+│   │   └── jira/
+│   │       ├── utils.py           # get_field_value + parse_jira_datetime
+│   │       ├── connection/        # JiraConnection 主类 + 5 mixin + 异常
+│   │       └── query/             # search_all_issues + get_user_worklogs
 │   ├── views/                     # 4 个 Tab
 │   │   ├── credentials_view.py    # ① 凭据配置
 │   │   ├── task_summary.py        # ② 任务汇总（三段：我的非 IPPUB / 我的 IPPUB / 自定义 JQL）
@@ -62,11 +69,11 @@ jira-worklog-gui/                  # 仓库根
 │   └── widgets/
 │       └── duration_entry.py      # 耗时输入 + 校验
 ├── tests/
-│   ├── test_jira_service.py       # 26 个用例
-│   ├── test_duration.py           # 29 个用例（不依赖真 JIRA）
-│   └── test_worklog_write.py      # 11 个用例（add/update/delete 写）
+│   ├── test_jira_service.py       # JiraService 业务方法测试
+│   ├── test_duration.py           # 耗时输入 + 校验
+│   └── test_vendor_smoke.py       # vendor 包导入链烟雾测试
 ├── docs/                          # 设计/计划/AI 上下文
-├── pyproject.toml                 # 依赖 IP_Jira_Mnager @ git+...
+├── pyproject.toml                 # 依赖 jira>=3.5.0（vendor 替代原 Git 依赖）
 ├── AGENTS.md                      # 给开发者看的项目说明
 └── README.md                      # 给用户看的使用说明
 ```
@@ -81,22 +88,17 @@ IP_Jira_Mnager (Gitee 仓)
     └─ src/jira/query/                (search_all_issues, get_user_worklogs)
 ```
 
-安装方式（**重要**：这是用户首次启动的步骤）：
+安装方式（**v3 起单步安装**）：
 
 ```bash
-# 1. 先装底层库（开发模式）
-git clone https://gitee.com/chongfengshi/IP_Jira_Mnager.git
-pip install -e ./IP_Jira_Mnager
-
-# 2. 装 GUI
 git clone https://github.com/FasenChen/jira-worklog-gui.git
 pip install -e ./jira-worklog-gui
-
-# 3. 启动
 jira-worklog-gui
 # 或
 python -m jira_worklog_gui
 ```
+
+依赖：`jira>=3.5.0`（PyPI）。上游 `IP_Jira_Mnager` 仓库的连接库已 vendor 到本仓 `_vendor/`，不再需要额外 clone。
 
 ### GUI 内部数据流
 
@@ -216,13 +218,19 @@ app.destroy()
 
 ---
 
-## 9. 与上游 IP_Jira_Mnager 仓库的关系
+## 9. 上游 IP_Jira_Mnager 仓库（已断联）
 
-- 本仓依赖 IP_Jira_Mnager 的 `src/jira/` 库（Git 依赖）
-- 库侧 v0.x 开放了 worklog 写能力（add_worklog 等），本项目用得到
-- 库侧任何对 `JiraConnection` / `search_all_issues` / `get_user_worklogs` 的改动，会通过 `pip install` 拉新 commit 后生效
-- 库侧如果改了 issue type id（不太可能），本项目要同步更新 `EXCLUDED_ISSUE_TYPE_IDS`
+自 v3 (2026-07-03) 起，本仓已**完整 vendor** 上游库代码到 `src/jira_worklog_gui/_vendor/`，**不再依赖** `pip install -e ./IP_Jira_Mnager`。
+
+**断联含义：**
+- 上游 `IP_Jira_Mnager` 仓库后续任何 commit 不会自动生效
+- 需要新功能时，在 vendor 内部手动复制上游代码并解决冲突
+- 上游若改了 issue type id，需要手动同步到 vendor + 更新本仓 `EXCLUDED_ISSUE_TYPE_IDS`
+
+**vendor 边界：**
+- vendor 目录**视同第三方库**——本项目代码不应修改它
+- vendor 仍依赖 PyPI `jira` 库（通过 `from jira import JIRA` 调底层）
 
 ---
 
-最后更新：2026-07-02（项目独立日）
+最后更新：2026-07-03（v3 vendor 完成）

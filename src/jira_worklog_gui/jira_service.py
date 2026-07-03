@@ -5,79 +5,25 @@
 - 所有方法要么返回数据，要么抛 JiraConnectionError / JiraAuthError / JiraRequestError，
   让调用方负责错误提示
 - 解析 JIRA 原始 Issue 对象为简单 dict，便于 Treeview 渲染
+
+依赖说明：
+- JiraConnection 等上游库代码已 vendor 到本仓 _vendor/jira/ 下
+  （断联模式，未来不自动同步 D:\\Code\\IP_Jira_Mnager）
+- 仍依赖 PyPI 的 `jira` 库（vendor 内部通过 `from jira import JIRA` 调底层）
 """
 from __future__ import annotations
 
 import re
-import sys
 from datetime import datetime, time, timedelta, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# 兼容 IP_Jira_Mnager 的 src/ 布局：原仓 _decorators.py 用 from ...common.decorators
-# 只有当 IP_Jira_Mnager/src 在 sys.path 时才能 resolve。这里自动探测 IP_Jira_Mnager
-# 的 editable 安装路径，把 src 目录加到 sys.path。如果安装方式改了，这段也无害（已
-# 在 sys.path 上时加重复项无副作用）。
-def _bootstrap_ip_jira_manager_src() -> None:
-    try:
-        from importlib.metadata import distribution
-    except ImportError:
-        return
-    try:
-        dist = distribution("ip-jira-manager")
-    except Exception:
-        return
-    candidates = []
-    # 1) editable install: dist-info/direct_url.json 里有 file:// 指向项目根
-    try:
-        import json
-        dist_info_dir = Path(str(dist._path))  # type: ignore[attr-defined]
-        direct_url = dist_info_dir / "direct_url.json"
-        if direct_url.exists():
-            data = json.loads(direct_url.read_text(encoding="utf-8"))
-            url = data.get("url", "")
-            if url.startswith("file://"):
-                # file:///D:/Code/IP_Jira_Mnager -> D:\Code\IP_Jira_Mnager
-                from urllib.request import url2pathname
-                project_root = Path(url2pathname(url[len("file://"):]))
-                candidates.append(project_root / "src")
-    except Exception:
-        pass
-    # 2) 退路：dist-info 的父目录（site-packages）下的 src（普通 install 用）
-    try:
-        dist_info_dir = Path(str(dist._path))  # type: ignore[attr-defined]
-        site_packages = dist_info_dir.parent
-        candidates.append(site_packages / "src")
-    except Exception:
-        pass
-    for cand in candidates:
-        try:
-            # cand 是 src 目录的路径。我们要的是 cand.parent（即 src 所在的项目根），
-            # 因为 src/__init__.py 里 from src.jira import ... 要能 resolve。
-            project_root = cand.parent
-            src_init = cand / "__init__.py"
-            jira_init = cand / "jira" / "__init__.py"
-            # 检查 src/ 完整性：src/__init__.py + src/jira/__init__.py 是最低要求
-            # （src/common 可能在 site-packages install 时没被 setuptools 找到，
-            # 但 src/ 整目录在 sys.path 上时，import 仍能通过 IP_Jira_Mnager 仓根的
-            # src.common 路径解决；或者通过 src/ 自身作为 namespace package。）
-            if src_init.exists() and jira_init.exists():
-                if str(project_root) not in sys.path:
-                    sys.path.insert(0, str(project_root))
-                return
-        except OSError:
-            continue
-
-
-_bootstrap_ip_jira_manager_src()
-
-from src.jira.connection.client import JiraConnection  # noqa: E402
-from src.jira.connection.exceptions import (  # noqa: E402
+from ._vendor.jira.connection import (  # noqa: E402
+    JiraConnection,
     JiraConnectionError,
     JiraAuthError,
     JiraRequestError,
 )
-from src.jira.query import search_all_issues, get_user_worklogs  # noqa: E402
+from ._vendor.jira.query import search_all_issues, get_user_worklogs  # noqa: E402
 
 
 # 任务汇总预设 JQL（设计文档定义）
@@ -252,7 +198,7 @@ class JiraService:
                             days: int = 7) -> List[Dict[str, Any]]:
         """获取指定用户最近 N 天的所有工作日志。
 
-        复用 src.jira.query.user_activity.get_user_worklogs 拿到最近 N 天的全部，
+        复用 _vendor.jira.query.user_activity.get_user_worklogs 拿到最近 N 天的全部，
         然后按 started >= 今天 - (days-1) 00:00 本地时区 过滤。
         按 started 降序返回。
 

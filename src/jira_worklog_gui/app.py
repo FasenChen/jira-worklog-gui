@@ -185,7 +185,8 @@ class App(tk.Tk):
         messagebox.showinfo(
             "关于",
             f"{APP_TITLE}\n版本：{APP_VERSION}\n\n"
-            f"底层库：src.jira\n项目根：{PROJECT_ROOT}\n\n"
+            f"底层库：jira_worklog_gui._vendor.jira (JiraConnection)\n"
+            f"项目根：{PROJECT_ROOT}\n\n"
             f"配置文件：~/.jira_worklog_gui/config.json",
         )
 
