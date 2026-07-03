@@ -4,17 +4,19 @@
 
 ## 启动
 
-在项目根目录（`D:\Code\IP_Jira_Mnager`）：
-
 ```bash
 # 1. 装依赖（项目已有）
 pip install -e .
 
 # 2. 启动 GUI
-python -m tools.jira_worklog_gui
+jira-worklog-gui
+# 或
+python -m jira_worklog_gui
 ```
 
 需要 Python 3.8+（项目本身要求）。GUI 不引入任何第三方库（tkinter 是 Python 自带）。
+
+依赖：`jira>=3.5.0`（PyPI）。上游 `IP_Jira_Mnager` 仓库的 JIRA 连接库已 vendor 到 `src/jira_worklog_gui/_vendor/`，**无需再单独 clone 上游仓库**。
 
 ## 功能
 
