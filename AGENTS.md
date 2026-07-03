@@ -54,6 +54,12 @@ src/jira_worklog_gui/
 ├── app.py                 # 主窗口（4 Tab Notebook）+ App._on_issue_picked 切 Tab
 ├── config_store.py        # 凭据 JSON 读写 + HARDCODED_JIRA_URL 常量
 ├── jira_service.py        # JiraConnection 薄封装 + 业务方法 + EXCLUDED_ISSUE_TYPE_IDS / JQL 常量
+├── _vendor/               # 上游 IP_Jira_Mnager 库的 vendor 副本（断联模式，视为第三方）
+│   ├── common/decorators.py
+│   └── jira/
+│       ├── utils.py       # get_field_value + parse_jira_datetime 等
+│       ├── connection/    # JiraConnection + 5 mixin + 异常类
+│       └── query/         # search_all_issues + get_user_worklogs
 ├── views/
 │   ├── credentials_view.py # ① 凭据配置 Tab
 │   ├── task_summary.py    # ② 任务汇总（三段：我的非 IPPUB / 我的 IPPUB / 自定义 JQL）
@@ -70,9 +76,9 @@ docs/
 ## 架构边界（重要）
 
 - **不要**改 `jira_service.py` 之外的 GUI 文件去直接调底层 `jira.JIRA(...)`——所有 JIRA 调用必须经 `JiraService`
-- **不要**改这个仓的上游 `IP_Jira_Mnager` 库代码（在另一个仓库）。如需 `JiraConnection` 新方法，去那个仓库改
+- **`_vendor/` 内的代码视同第三方库**——vendor 是断联模式（不再从 `D:\Code\IP_Jira_Mnager` 自动同步），改 vendor 内的代码 = 改底层库，本项目**不应该**改它
 - **不要** `from tools.jira_worklog_gui import ...`——早期路径已废弃
-- 新增 worklog 操作链：`view → JiraService.* → JiraConnection.* (上游库) → jira lib`
+- 新增 worklog 操作链：`view → JiraService.* → _vendor.JiraConnection.* → jira lib (PyPI)`
 - 视图层之间**不互相 import**；跨 Tab 通信走 `App._on_issue_picked`（LogEntryView 接收 issue）
 
 ## 关键常量 / 业务规则
