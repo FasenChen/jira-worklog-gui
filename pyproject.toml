@@ -1,6 +1,6 @@
 [project]
 name = "jira-worklog-gui"
-version = "0.2.0"
+version = "0.3.0"
 description = "JIRA 工作日志登记 GUI 工具（Tkinter）"
 requires-python = ">=3.8"
 readme = "README.md"
