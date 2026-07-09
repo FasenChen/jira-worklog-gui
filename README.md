@@ -65,56 +65,58 @@ python -m jira_worklog_gui
 ## 架构与扩展点
 
 ```
-tools/jira_worklog_gui/
-├── __main__.py             # 入口
-├── app.py                  # 主窗口（4 Tab Notebook）
-├── config_store.py         # JSON 凭据读写
-├── jira_service.py         # JiraConnection 薄封装 + 业务方法
-├── views/                  # 4 个 Tab Frame
+src/jira_worklog_gui/
+├── __main__.py            # python -m jira_worklog_gui 入口
+├── app.py                 # 主窗口（4 Tab Notebook）+ App._on_issue_picked 切 Tab
+├── config_store.py        # 凭据 JSON 读写 + HARDCODED_JIRA_URL 常量
+├── jira_service.py        # JiraConnection 薄封装 + 业务方法 + EXCLUDED_ISSUE_TYPE_IDS / JQL 常量
+├── _vendor/               # 上游 IP_Jira_Mnager 库的 vendor 副本（断联模式，视为第三方）
+│   ├── common/decorators.py
+│   └── jira/
+│       ├── utils.py
+│       ├── connection/    # JiraConnection + 5 mixin + 异常类
+│       └── query/         # search_all_issues + get_user_worklogs
+├── views/                 # 4 个 Tab
 │   ├── credentials_view.py
 │   ├── task_summary.py
 │   ├── log_entry.py
 │   └── today_log.py
 └── widgets/
-    └── duration_entry.py   # 耗时输入 + 校验
+    └── duration_entry.py  # 耗时输入 + 校验
 ```
 
 新增 worklog 操作（add/update/delete）的链路：
 
 ```
 GUI (views/log_entry.py)
-  └─ JiraService.add_worklog(...)                [tools/jira_worklog_gui/jira_service.py]
-       └─ JiraConnection.add_worklog(...)         [src/jira/connection/_worklog_write.py]
-            └─ jira.JIRA(...).add_worklog(...)    [底层 jira 库]
+  └─ JiraService.add_worklog(...)                      [src/jira_worklog_gui/jira_service.py]
+       └─ JiraConnection.add_worklog(...)              [src/jira_worklog_gui/_vendor/jira/connection/_worklog_write.py]
+            └─ jira.JIRA(...).add_worklog(...)         [底层 jira PyPI 库]
 ```
 
 要增加新功能（比如「按周报表」），照着 `jira_service.py` 的模式加方法即可，无需触碰 GUI 控件。
 
-## 库扩展说明
+## 关于 vendor
 
-为了让 GUI 能写入 worklog，本项目原本**只读**的 `src/jira` 库做了有意的架构突破：
+自 v0.3.0 起，上游 `IP_Jira_Mnager` 仓库本项目实际用到的 `JiraConnection` + 查询函数代码已**完整 vendor** 到 `src/jira_worklog_gui/_vendor/` 下，断联模式：
 
-- 新增 `src/jira/connection/_worklog_write.py`（`_WorklogWriteMixin`）
-- 挂到 `JiraConnection` 上：`class JiraConnection(..., _WorklogWriteMixin)`
-- 暴露 3 个方法：`add_worklog` / `update_worklog` / `delete_worklog`
-- **其他资源（issue、comment、transition、attachment 等）仍只读**，没有任何回归
-
-详见 `tests/test_worklog_write.py`（11 个 mock 单元测试覆盖所有写路径与异常映射）。
+- 不再依赖 `pip install -e ./IP_Jira_Mnager`
+- vendor 内的 `JiraConnection.add_worklog` / `update_worklog` / `delete_worklog` 等写操作直接可用
+- 其他资源（issue / comment / transition / attachment 等）仍只读
+- vendor 视同第三方库——本项目代码不应修改它
+- 未来上游更新需手动复制并解决冲突，详见 `docs/superpowers/plans/2026-07-03-vendor-upstream-jira-lib.md`
 
 ## 测试
 
 ```bash
-# 库扩展测试
-python -m pytest tests/test_worklog_write.py -v
+# 全量 unit 套件（不依赖真 JIRA，~0.2s 跑完）
+pytest -m unit -v
 
-# GUI 工具测试（不依赖真 JIRA）
-python -m pytest tests/test_jira_service.py tests/test_duration.py -v
-
-# 全量 unit 套件
-python -m pytest tests/test_utils.py tests/test_entity.py tests/test_connection.py tests/test_query.py tests/test_confluence.py tests/test_duration.py tests/test_jira_service.py tests/test_worklog_write.py
+# vendor 烟雾测试（验证 _vendor/ 导入链）
+pytest tests/test_vendor_smoke.py -v
 ```
 
-当前 259 个用例全部通过。
+当前 77 个用例全部通过（71 业务测试 + 6 vendor 烟雾测试）。
 
 GUI 本身是交互式的，未做自动化 GUI 测试。手动 smoke test：启动后填写用户名+密码 → 点「连接」 → 切到「任务汇总」选个 issue → 在「快速登记」用快捷按钮填耗时和开始时间 → 提交 → 在「近 7 天日志」Tab 看到记录。
 
